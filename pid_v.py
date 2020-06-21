@@ -63,6 +63,3 @@ class pid(object):
 if __name__ == '__main__':
     pid_1 = pid(10.0, 10.0, 2.0)
     pid_1.run(50, 200, 10)
-    plt.plot(pid_1.time_range, pid_1.measured)
-    plt.plot(pid_1.time_range, pid_1.sp_range)
-    plt.show()
