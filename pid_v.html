@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>PID Visualizer</title>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <script src="https://unpkg.com/d3-simple-slider"></script>
+    <style>
+        #container{
+            display: block;
+            margin: 0 auto;
+            width: 80%;
+        }
+        .line{
+            fill: none;
+            stroke-width: 2.5px;
+        }
+        .titleT{
+            stroke: black;
+            fill: black;
+            font-size: 24px;
+        }
+        .axisT{
+            stroke: black;
+            fill: black;
+            font-size: 12px;
+        }
+        .legendT{
+            stroke: black;
+            fill: black;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+    </div>
+    <script type="text/javascript">
+        var margin = {top:50, right:100, bottom:100, left:100};
+        var height = 400;
+        var width = 800;
+
+        var svg = d3.select('#container')
+                    .append('svg')
+                    .attr('id', 'svg1')
+                    .attr('width', width)
+                    .attr('height', height)
+                    .append('g')
+                    .attr('id', 'g1')
+                    .attr('transform', 'translate('+margin.left+','+margin.right+')');
+        var title = d3.select('#svg1')            
+                    .append('text')
+                    .text('Proportional Intergral Derivative control')
+                    .attr('class', 'titleT')
+                    .attr('dx', width/4)
+                    .attr('dy', height/8);
+        
+        class pid {
+            constructor(p=0.3, iT=50, dT=3, loss=-30){
+                this.p = p;
+                this.i = p / iT;
+                this.d = p * dT;
+                this.loss = loss;
+            }
+            run(iSP=200, runT=500, ramp=0){
+                this.T = [];
+                this.SP= [];
+                this.PV = [0];
+                var E_i = iSP - this.PV[0]
+                this.E = [E_i]
+                for (var i=0; i<=runT; i++){
+                    this.T.push(i);
+                    this.SP.push(iSP+ramp*i);
+                }
+                var p_o = this.p * E_i;
+                var i_o = this.i * d3.sum(this.E);
+                var d_o = 0;
+                var output = d3.max([(p_o + i_o + d_o), 0]);
+                var PV_i = d3.max([(this.PV[0] + output + this.loss), 0]);
+                this.PV.push(PV_i);
+                for (var i=1; i<this.SP.length-1; i++){
+                    E_i = this.SP[i] - this.PV[i];
+                    this.E.push(E_i);
+                    p_o = this.p * E_i;
+                    i_o = this.i * d3.sum(this.E);
+                    d_o = this.d * (this.E[i] - this.E[i-1]);
+                    output = d3.max([(p_o + i_o + d_o), 0]);
+                    PV_i = d3.max([(this.PV[i] + output + this.loss), 0]);
+                    this.PV.push(PV_i);
+                }
+            }
+        }
+
+        var pid1 = new pid(0.3, 50, 3, -30);
+        pid1.run(500, 200, 1)
+        console.log(pid1.PV)
+
+        width = width - margin.left - margin.right;
+        height = height - margin.top - margin.bottom;
+        var xScale = d3.scaleLinear()
+                       .domain([pid1.T[0], pid1.T[pid1.T.length-1]])
+                       .range([0, width]);
+        var yScale = d3.scaleLinear()
+                       .domain([0, 1.2*pid1.SP[pid1.SP.length-1]])
+                       .range([height, 0]);
+        var xAxis = d3.axisBottom().scale(xScale)
+        var yAxis = d3.axisLeft().scale(yScale)
+        
+        var data = []
+        var color = ['#d8b365', '#5ab4ac']
+        for (var i = 0; i <pid1.T.length; i++) {
+            data.push({'t': pid1.T[i], 'sp': pid1.SP[i], 'pv': pid1.PV[i]});
+        }
+        var spLine = d3.line().x(d => xScale(d.t)).y(d => yScale(d.sp))
+        var pvLine = d3.line().x(d => xScale(d.t)).y(d => yScale(d.pv))
+        svg.selectAll('.line')
+           .data([spLine(data), pvLine(data)])
+           .enter()
+           .append('path')
+           .attr('class', 'line')
+           .attr('stroke', function(d, i){return color[i];})
+           .attr('d', d => d)
+        svg.append('g')
+           .attr('id', 'xAxis')
+           .attr('transform', 'translate(0, ' + height + ')')
+           .call(xAxis)
+           .append('text')
+           .text('Time (s)')
+           .attr('class', 'axisT')
+           .attr('dx', width/2)
+           .attr('dy', height/8);
+        svg.append('g')
+           .attr('id', 'yAxis')
+           .call(yAxis)
+           .append('text')
+           .text('Temperature (a.u.)')
+           .attr('class', 'axisT')
+           .attr('transform', 'rotate(270,' + (-margin.left/3) +',' + height/2 + ')')
+           .attr('dy', height/2);
+        svg.append('line')
+           .attr('stroke', color[0])
+           .attr('stroke-width', 2.5)
+           .attr('x1', width/1.75)
+           .attr('x2', width/1.5)
+           .attr('y1', height/1.75)
+           .attr('y2', height/1.75);
+        svg.append('text')
+           .text('Set value')
+           .attr('class', 'legendT')
+           .attr('x', width/1.45)
+           .attr('y', height/1.75);
+        svg.append('line')
+           .attr('stroke', color[1])
+           .attr('stroke-width', 2.5)
+           .attr('x1', width/1.75)
+           .attr('x2', width/1.5)
+           .attr('y1', height/1.5)
+           .attr('y2', height/1.5);
+        svg.append('text')
+           .text('Process value')
+           .attr('class', 'legendT')
+           .attr('x', width/1.45)
+           .attr('y', height/1.5);
+    </script>
+</body>
+</html>
